@@ -17,7 +17,7 @@ from classificationmodule import VideoClassificationLightningModule
 def main():
     early_stop_patience = 6
     max_epochs = 100
-    num_classes = 5
+    num_classes = 2
     model_type = 'csn'
     depth = 101 #50, 101, 152
 

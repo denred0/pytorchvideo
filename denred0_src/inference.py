@@ -1,6 +1,9 @@
 import torch
 import json
 import pickle
+import cv2
+
+from tqdm import tqdm
 
 from classificationmodule import VideoClassificationLightningModule
 
@@ -52,7 +55,7 @@ def main():
 
     # model = slowfast.slowfast_r50(pretrained=True)
 
-    best_checkpoint = 'tb_logs/resnet_101/version_3/checkpoints/resnet_101_epoch=6_val_loss=0.453_val_acc=0.807.ckpt'
+    best_checkpoint = 'tb_logs/csn_101/version_9/checkpoints/csn_101_epoch=4_val_loss=0.258_val_acc=0.939.ckpt'
     model = VideoClassificationLightningModule.load_from_checkpoint(checkpoint_path=best_checkpoint)
 
     # model = torch.hub.load("facebookresearch/pytorchvideo", model=model_name, pretrained=True)
@@ -91,42 +94,50 @@ def main():
 
     # The duration of the input clip is also specific to the model.
     # clip_duration = (num_frames * sampling_rate) / frames_per_second
-    clip_duration = 5
+    clip_duration = 2  # seconds
 
     # Load the example video
-    video_path = "denred0_data/test_pretrained/eat.avi"
+    video_path = "denred0_data/inference/case_2_test.mp4"
 
-    # Select the duration of the clip to load by specifying the start and end duration
-    # The start_sec should correspond to where the action occurs in the video
-    start_sec = 0
-    end_sec = start_sec + clip_duration
+    cap = cv2.VideoCapture(video_path)
+    length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
 
     # Initialize an EncodedVideo helper class
     video = EncodedVideo.from_path(video_path)
 
-    # Load the desired clip
-    video_data = video.get_clip(start_sec=start_sec, end_sec=end_sec)
+    videos_count = int(length / (fps * clip_duration))
 
-    # Apply a transform to normalize the video input
-    video_data = transform(video_data)
+    for i, vid in (enumerate(range(videos_count))):
+        # Select the duration of the clip to load by specifying the start and end duration
+        # The start_sec should correspond to where the action occurs in the video
+        start_sec = i * clip_duration
+        end_sec = i * clip_duration + clip_duration
 
-    # Move the inputs to the desired device
-    inputs = video_data["video"]
-    inputs = inputs.unsqueeze(0)
-    inputs = inputs.to(device)
-    # inputs = [i.to(device)[None, ...] for i in inputs]
+        # Load the desired clip
+        video_data = video.get_clip(start_sec=start_sec, end_sec=end_sec)
 
-    # Pass the input clip through the model
-    preds = model(inputs)
+        # Apply a transform to normalize the video input
+        video_data = transform(video_data)
 
-    # Get the predicted classes
-    post_act = torch.nn.Softmax(dim=1)
-    preds = post_act(preds)
-    pred_classes = preds.topk(k=4).indices
+        # Move the inputs to the desired device
+        inputs = video_data["video"]
+        inputs = inputs.unsqueeze(0)
+        inputs = inputs.to(device)
+        # inputs = [i.to(device)[None, ...] for i in inputs]
 
-    # Map the predicted classes to the label names
-    pred_class_names = [kinetics_id_to_classname[int(i)] for i in pred_classes[0]]
-    print("Predicted labels: %s" % ", ".join(pred_class_names))
+        # Pass the input clip through the model
+        with torch.no_grad():
+            preds = model(inputs)
+
+        # Get the predicted classes
+        post_act = torch.nn.Softmax(dim=1)
+        preds = post_act(preds)
+        pred_classes = preds.topk(k=2).indices
+
+        # Map the predicted classes to the label names
+        pred_class_names = [kinetics_id_to_classname[int(i)] for i in pred_classes[0]]
+        print("Predicted labels for video " + str(i) + ": %s" % ", ".join(pred_class_names))
 
 
 if __name__ == '__main__':
