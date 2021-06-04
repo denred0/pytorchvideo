@@ -17,13 +17,13 @@ from classificationmodule import VideoClassificationLightningModule
 def main():
     early_stop_patience = 6
     max_epochs = 100
-    num_classes = 8
-    model_type = 'resnet'
-    depth = 101
+    num_classes = 5
+    model_type = 'csn'
+    depth = 101 #50, 101, 152
 
-    data_path = os.path.join('data', 'dataset')
-    clip_duration = 3
-    batch_size = 4
+    data_path = os.path.join('denred0_data', 'dataset')
+    clip_duration = 2
+    batch_size = 2
     num_workers = 8
     init_lr = 3e-4
 
@@ -64,22 +64,25 @@ def main():
                                         )
     # auto_lr_find=True,
     # callbacks=callbacks)
-    trainer.fit(classification_module, data_module)
 
-    # Evaluate the model on the held out test set ⚡⚡
-    results = trainer.test()[0]
+    for i in range(11):
 
-    # save test results
-    results['best_checkpoint'] = trainer.checkpoint_callback.best_model_path
+        trainer.fit(classification_module, data_module)
 
-    filename = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '__test_acc_' + str(
-        round(results.get('test_acc'), 4)) + '.txt'
+        # Evaluate the model on the held out test set ⚡⚡
+        results = trainer.test()[0]
 
-    path = 'test_logs/' + experiment_name
-    Path(path).mkdir(parents=True, exist_ok=True)
+        # save test results
+        results['best_checkpoint'] = trainer.checkpoint_callback.best_model_path
 
-    with open(path + '/' + filename, 'w+') as f:
-        print(results, file=f)
+        filename = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '__test_acc_' + str(
+            round(results.get('test_acc'), 4)) + '.txt'
+
+        path = 'test_logs/' + experiment_name
+        Path(path).mkdir(parents=True, exist_ok=True)
+
+        with open(path + '/' + filename, 'w+') as f:
+            print(results, file=f)
 
 
 if __name__ == '__main__':

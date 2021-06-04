@@ -136,7 +136,7 @@ def train_val_split_images(root_directory, val_part):
 
 if __name__ == "__main__":
     dataset_folder = 'dataset'
-    root_dir = os.path.join('data', dataset_folder)
+    root_dir = os.path.join('denred0_data', dataset_folder)
     video_ext = ['.avi']
     val_part = 0.2
 

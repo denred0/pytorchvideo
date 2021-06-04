@@ -30,6 +30,14 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 norm=nn.BatchNorm3d,
                 activation=nn.ReLU,
             )
+        elif self.model_type == 'csn':
+            self.model = pytorchvideo.models.csn.create_csn(
+                input_channel=3,  # RGB input from Kinetics
+                model_depth=self.depth,  # For the tutorial let's just use a 50 layer network
+                model_num_class=self.num_classes,  # Kinetics has 400 classes so we need out final head to align
+                norm=nn.BatchNorm3d,
+                activation=nn.ReLU,
+            )
         else:
             assert (
                 False

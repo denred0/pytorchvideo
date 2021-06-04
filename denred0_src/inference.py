@@ -1,5 +1,9 @@
 import torch
 import json
+import pickle
+
+from classificationmodule import VideoClassificationLightningModule
+
 from torchvision.transforms import Compose, Lambda
 from torchvision.transforms._transforms_video import (
     CenterCropVideo,
@@ -10,7 +14,8 @@ from pytorchvideo.transforms import (
     ApplyTransformToKey,
     ShortSideScale,
     UniformTemporalSubsample,
-    UniformCropVideo
+    UniformCropVideo,
+    Normalize
 )
 from typing import Dict
 
@@ -44,52 +49,52 @@ def main():
     device = "cpu"
 
     # Pick a pretrained model and load the pretrained weights
-    model_name = "slowfast_r50"
-    model = slowfast.slowfast_r50(pretrained=True)
+
+    # model = slowfast.slowfast_r50(pretrained=True)
+
+    best_checkpoint = 'tb_logs/resnet_101/version_3/checkpoints/resnet_101_epoch=6_val_loss=0.453_val_acc=0.807.ckpt'
+    model = VideoClassificationLightningModule.load_from_checkpoint(checkpoint_path=best_checkpoint)
+
     # model = torch.hub.load("facebookresearch/pytorchvideo", model=model_name, pretrained=True)
 
     # Set to eval mode and move to desired device
     model = model.to(device)
     model = model.eval()
 
-    with open("data/test_pretrained/kinetics_classnames.json", "r") as f:
-        kinetics_classnames = json.load(f)
+    file_to_read = open("denred0_data/dataset/label_encoder.pkl", "rb")
 
-    # Create an id to label name mapping
+    loaded_dictionary = pickle.load(file_to_read)
+
     kinetics_id_to_classname = {}
-    for k, v in kinetics_classnames.items():
-        kinetics_id_to_classname[v] = str(k).replace('"', "")
+    for k, v in enumerate(loaded_dictionary.classes_):
+        kinetics_id_to_classname[k] = str(v)
 
     side_size = 256
     mean = [0.45, 0.45, 0.45]
     std = [0.225, 0.225, 0.225]
     crop_size = 256
-    num_frames = 32
-    sampling_rate = 2
-    frames_per_second = 30
+    num_frames = 8
+    # sampling_rate = 1
+    frames_per_second = 24
     alpha = 4
 
     transform = ApplyTransformToKey(
         key="video",
         transform=Compose(
             [
-                UniformTemporalSubsample(num_frames),
-                Lambda(lambda x: x / 255.0),
-                NormalizeVideo(mean, std),
-                ShortSideScale(
-                    size=side_size
-                ),
-                CenterCropVideo(crop_size),
-                PackPathway(alpha=alpha)
+                UniformTemporalSubsample(8),
+                ShortSideScale(size=256),
+                Normalize((0.45, 0.45, 0.45), (0.225, 0.225, 0.225)),
             ]
         ),
     )
 
     # The duration of the input clip is also specific to the model.
-    clip_duration = (num_frames * sampling_rate) / frames_per_second
+    # clip_duration = (num_frames * sampling_rate) / frames_per_second
+    clip_duration = 5
 
     # Load the example video
-    video_path = "data/test_pretrained/kiss.avi"
+    video_path = "denred0_data/test_pretrained/eat.avi"
 
     # Select the duration of the clip to load by specifying the start and end duration
     # The start_sec should correspond to where the action occurs in the video
@@ -107,7 +112,9 @@ def main():
 
     # Move the inputs to the desired device
     inputs = video_data["video"]
-    inputs = [i.to(device)[None, ...] for i in inputs]
+    inputs = inputs.unsqueeze(0)
+    inputs = inputs.to(device)
+    # inputs = [i.to(device)[None, ...] for i in inputs]
 
     # Pass the input clip through the model
     preds = model(inputs)
@@ -115,7 +122,7 @@ def main():
     # Get the predicted classes
     post_act = torch.nn.Softmax(dim=1)
     preds = post_act(preds)
-    pred_classes = preds.topk(k=5).indices
+    pred_classes = preds.topk(k=4).indices
 
     # Map the predicted classes to the label names
     pred_class_names = [kinetics_id_to_classname[int(i)] for i in pred_classes[0]]
